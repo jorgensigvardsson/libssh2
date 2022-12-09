@@ -3585,8 +3585,17 @@ static int kex_agree_mac(LIBSSH2_SESSION * session,
                          unsigned long mac_len)
 {
     const LIBSSH2_MAC_METHOD **macp = _libssh2_mac_methods();
+    const LIBSSH2_MAC_METHOD *override;
     unsigned char *s;
     (void) session;
+
+    override = _libssh2_mac_override(endpoint->crypt);
+    if(override) {
+        /* This crypto method has its own hmac method built-in, so a separate
+         * negotiation (and use) of a separate hmac method is unnecessary */
+        endpoint->mac = override;
+        return 0;
+    }
 
     if(endpoint->mac_prefs) {
         s = (unsigned char *) endpoint->mac_prefs;
@@ -3750,6 +3759,8 @@ static int kex_agree_methods(LIBSSH2_SESSION * session, unsigned char *data,
         return -1;
     }
 
+    /* This must happen after kex_agree_crypt since some MACs depend on the
+       negotiated crypto method */
     if(kex_agree_mac(session, &session->local, mac_cs, mac_cs_len) ||
         kex_agree_mac(session, &session->remote, mac_sc, mac_sc_len)) {
         return -1;
